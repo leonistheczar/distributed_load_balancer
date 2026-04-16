@@ -1,0 +1,8 @@
+dataset: data/ecommerce_sample.csv
+algorithm: rr
+speed: 0
+sample: 0
+exclude_bots: false
+seed: 42
+output: results
+

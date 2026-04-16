@@ -1,0 +1,42 @@
+============================================================
+  Iranian E-Commerce Log — Data Quality Report
+  Generated: 2026-04-16 16:12:52
+============================================================
+
+  Original lines:    10,364,866
+  Cleaned rows:      10,364,852
+  Rows dropped:              14  (0.0%)
+
+  Date range:      2019-01-22 00:26:14 -> 2019-01-26 16:59:13
+  Unique clients:       258,445
+  Unique URLs:          893,042
+  Bot requests:       1,117,596  (10.8%)
+
+  Top 10 URLs:
+     352,047  /settings/logo
+     280,176  /static/css/font/wyekan/font.woff
+     138,010  /static/images/guarantees/bestPrice.png
+     125,689  /static/images/guarantees/fastDelivery.png
+     124,127  /static/images/guarantees/warranty.png
+     116,653  /static/images/guarantees/goodShopping.png
+     103,798  /site/alexaGooleAnalitic
+     102,731  /favicon.ico
+      98,460  /static/images/guarantees/support.png
+      92,409  /static/images/amp/telegram.png
+
+  Status Distribution:
+    200  ->  9,579,824
+    304  ->  340,228
+    302  ->  199,835
+    404  ->  105,011
+    301  ->  67,549
+    499  ->  50,852
+    500  ->  14,266
+    403  ->  5,634
+
+  Inter-arrival time (seconds, capped at 60):
+    mean:   0.0391
+    median: 0.0000
+    p99:    1.0000
+
+============================================================

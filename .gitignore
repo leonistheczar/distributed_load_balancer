@@ -1,0 +1,90 @@
+# -----------------------------
+# Python bytecode and caches
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# -----------------------------
+# Virtual environments
+# -----------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# -----------------------------
+# Build / packaging artifacts
+# -----------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# -----------------------------
+# IDE / editor files
+# -----------------------------
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# -----------------------------
+# OS-specific junk
+# -----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -----------------------------
+# Runtime outputs / logs
+# -----------------------------
+results/
+*.log
+*.tmp
+
+# -----------------------------
+# Dataset and large/raw files
+# Keep folder structure, ignore heavy contents
+# -----------------------------
+dataset/archive/access.log
+dataset/archive/client_hostname.csv
+dataset/archive/ecommerce_cleaned.csv
+dataset/archive/ecommerce_sample.csv
+dataset/archive/*.zip
+dataset/archive.zip
+dataset/**/*.zip
+
+# Optional alt data layout from guide
+data/raw/
+data/ecommerce_cleaned.csv
+data/ecommerce_sample.csv
+
+# -----------------------------
+# Environment / secrets
+# -----------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets*.json
+credentials*.json
+# PROJECT MD
+MVP_Load_Balancer_BUILD_GUIDE_ECommerce.md
