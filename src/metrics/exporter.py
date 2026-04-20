@@ -14,18 +14,28 @@ class MetricsExporter:
     def export(self, results: list[dict[str, Any]], dataset_name: str) -> dict[str, Path]:
         out_dir = Path(self.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        date_dir = out_dir / datetime.now().strftime("%Y-%m-%d")
-        date_dir.mkdir(parents=True, exist_ok=True)
+        run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        run_dir = out_dir / "runs" / run_stamp
+        # Extremely unlikely, but guard against same-tick collisions.
+        while run_dir.exists():
+            run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            run_dir = out_dir / "runs" / run_stamp
+        reports_dir = run_dir / "reports"
+        charts_dir = run_dir / "charts"
+        html_dir = run_dir / "html"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        charts_dir.mkdir(parents=True, exist_ok=True)
+        html_dir.mkdir(parents=True, exist_ok=True)
 
         safe_dataset = dataset_name.replace("/", "_").replace("\\", "_")
 
-        json_path = out_dir / f"benchmark_report_{safe_dataset}.json"
-        txt_path = out_dir / f"benchmark_summary_{safe_dataset}.txt"
-        dist_png = out_dir / f"load_distribution_{safe_dataset}.png"
-        lat_png = out_dir / f"latency_comparison_{safe_dataset}.png"
-        imb_png = out_dir / f"imbalance_score_{safe_dataset}.png"
-        html_overview = date_dir / "overview.html"
-        html_nodes = date_dir / "nodes.html"
+        json_path = reports_dir / f"benchmark_report_{safe_dataset}.json"
+        txt_path = reports_dir / f"benchmark_summary_{safe_dataset}.txt"
+        dist_png = charts_dir / f"load_distribution_{safe_dataset}.png"
+        lat_png = charts_dir / f"latency_comparison_{safe_dataset}.png"
+        imb_png = charts_dir / f"imbalance_score_{safe_dataset}.png"
+        html_overview = html_dir / "overview.html"
+        html_nodes = html_dir / "nodes.html"
 
         json_path.write_text(json.dumps({"dataset": dataset_name, "results": results}, indent=2), encoding="utf-8")
         txt_path.write_text(self._render_summary(results, dataset_name), encoding="utf-8")
@@ -40,7 +50,10 @@ class MetricsExporter:
             "load_distribution_png": dist_png,
             "latency_comparison_png": lat_png,
             "imbalance_score_png": imb_png,
-            "html_dir": date_dir,
+            "run_dir": run_dir,
+            "reports_dir": reports_dir,
+            "charts_dir": charts_dir,
+            "html_dir": html_dir,
             "html_overview": html_overview,
             "html_nodes": html_nodes,
         }
