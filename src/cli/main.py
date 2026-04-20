@@ -23,6 +23,13 @@ from src.nodes.node import Node
 from src.nodes.pool import NodePool
 from src.replayer.replayer import TrafficReplayer
 
+try:
+    # Module execution: python -m src.cli.main
+    from .live_dashboard import LiveDashboard
+except ImportError:
+    # Script execution: python src/cli/main.py
+    from live_dashboard import LiveDashboard
+
 
 console = Console()
 
@@ -53,6 +60,15 @@ DEFAULT_NODES: list[NodeConfig] = [
 ]
 
 
+def _safe_total_rows(loader: DatasetLoader) -> int:
+    """Best-effort total rows hint for dashboard progress."""
+    for attr in ("total_rows", "row_count", "rows"):
+        value = getattr(loader, attr, None)
+        if isinstance(value, int) and value >= 0:
+            return value
+    return 0
+
+
 def resolve_output_dir(
     output_arg: str,
     dataset_path: str,
@@ -70,22 +86,27 @@ def resolve_output_dir(
     bots_label = "no_bots" if exclude_bots else "with_bots"
 
     if output_arg in ("", "results", "."):
-        scenario = f"{dataset_name}_{algo_label}_sample{sample_label}_q{queue_label}_{bots_label}"
-        return base / scenario
+        # Classified default layout:
+        # results/<dataset>/<algorithms>/<sample>/<queue>/<bots>/
+        return (
+            base
+            / dataset_name
+            / f"algorithms_{algo_label}"
+            / f"sample_{sample_label}"
+            / f"queue_{queue_label}"
+            / f"bots_{bots_label}"
+        )
 
-    # Keep absolute paths as-is.
     candidate = Path(output_arg)
     if candidate.is_absolute():
         return candidate
 
-    # If user passes "results_*", collapse into results/<suffix>.
     lowered = output_arg.lower()
     if lowered.startswith("results_"):
         output_arg = output_arg[len("results_") :]
     if lowered.startswith("results\\") or lowered.startswith("results/"):
         return Path(output_arg)
 
-    # Relative custom labels are always treated as scenario folders.
     return base / output_arg
 
 
@@ -125,11 +146,20 @@ def run_once(
     started = time.perf_counter()
     in_flight: list[tuple[float, int, CompletionEvent]] = []
     event_seq = 0
+    dispatched_count = 0
+    dropped_count = 0
+    reroute_count = 0
+    failover_count = 0
+    cache_hits_count = 0
 
-    last_print_n = 0
+    dash = LiveDashboard(
+        algorithm=algorithm,
+        node_ids=[n.id for n in pool.nodes],
+        queue_capacity=queue_capacity,
+        total_requests=_safe_total_rows(loader),
+    )
 
     def flush_completions(up_to_second: float) -> None:
-        nonlocal last_print_n
         while in_flight and in_flight[0][0] <= up_to_second:
             _, _, event = heapq.heappop(in_flight)
             node = next((n for n in pool.nodes if n.id == event.node_id), None)
@@ -148,13 +178,12 @@ def run_once(
                 queue_wait_ms=event.queue_wait_ms,
                 service_latency_ms=event.service_latency_ms,
             )
-
-            n = metrics.summary()["total_requests"]
-            if n - last_print_n >= 50_000:
-                elapsed = max(1e-9, time.perf_counter() - started)
-                rps = n / elapsed
-                console.print(f"    {n:>10,} requests | {rps:>8.0f} req/s | sim_t={int(event.complete_at_s)}s")
-                last_print_n = n
+            dash.record_completion(
+                node_id=node.id,
+                latency_ms=event.total_latency_ms,
+                is_error=event.request.is_error,
+            )
+            dash.set_in_flight(node.id, node.in_flight)
 
     def has_queue_slot(candidate: Node) -> bool:
         return queue_capacity <= 0 or candidate.in_flight < queue_capacity
@@ -165,62 +194,97 @@ def run_once(
             return None
         return min(candidates, key=lambda n: (n.in_flight, n.id))
 
-    for req, sim_second in replayer.replay():
-        flush_completions(sim_second)
-        pool.tick(sim_second)
+    with dash:
+        for req, sim_second in replayer.replay():
+            flush_completions(sim_second)
+            pool.tick(sim_second)
+            dispatched_count += 1
 
-        node = algo.select_node(req, pool.nodes)
-        selected_node_id = node.id
-        if not has_queue_slot(node):
-            reroute = pick_reroute_node(node)
-            if reroute is None:
-                metrics.record_drop(req, sim_second=sim_second)
-                continue
-            node = reroute
-            metrics.record_backpressure_reroute()
+            for n in pool.nodes:
+                dash.set_node_health(n.id, n.is_healthy)
 
-        # Failover heuristic: IP hash "ideal" mapping is disrupted by failures.
-        was_failover = False
-        if algorithm == "ip_hash":
-            ideal = pool.nodes[int(req.client_hash) % len(pool.nodes)]
-            was_failover = not ideal.is_healthy
-        if selected_node_id != node.id:
-            was_failover = True
+            node = algo.select_node(req, pool.nodes)
+            selected_node_id = node.id
+            if not has_queue_slot(node):
+                reroute = pick_reroute_node(node)
+                if reroute is None:
+                    metrics.record_drop(req, sim_second=sim_second)
+                    dropped_count += 1
+                    dash.tick(
+                        sim_second=sim_second,
+                        total_processed=dispatched_count,
+                        drops=dropped_count,
+                        reroutes=reroute_count,
+                        failovers=failover_count,
+                        cache_hits=cache_hits_count,
+                        replay_index=dispatched_count,
+                        request_method=req.method,
+                        request_path=req.url_path,
+                        request_timestamp=req.timestamp.isoformat(),
+                        arrival_delta_s=req.arrival_delta_s,
+                    )
+                    continue
+                node = reroute
+                metrics.record_backpressure_reroute()
+                reroute_count += 1
 
-        req.assigned_node = node.id
+            was_failover = False
+            if algorithm == "ip_hash":
+                ideal = pool.nodes[int(req.client_hash) % len(pool.nodes)]
+                was_failover = not ideal.is_healthy
+            if selected_node_id != node.id:
+                was_failover = True
+            if was_failover:
+                failover_count += 1
 
-        if req.is_cacheable and node.check_cache(req.url_path):
-            metrics.record_cache_hit(node.id)
+            req.assigned_node = node.id
 
-        service_latency_ms = node.process(req.request_weight, rng=rng)
-        queue_wait_ms = max(0.0, (node.next_available_s - sim_second) * 1000.0)
-        start_at_s = max(sim_second, node.next_available_s)
-        complete_at_s = start_at_s + (service_latency_ms / 1000.0)
-        node.next_available_s = complete_at_s
-        node.in_flight += 1
+            if req.is_cacheable and node.check_cache(req.url_path):
+                metrics.record_cache_hit(node.id)
+                cache_hits_count += 1
 
-        total_latency_ms = queue_wait_ms + service_latency_ms
-        req.simulated_latency_ms = total_latency_ms
+            service_latency_ms = node.process(req.request_weight, rng=rng)
+            queue_wait_ms = max(0.0, (node.next_available_s - sim_second) * 1000.0)
+            start_at_s = max(sim_second, node.next_available_s)
+            complete_at_s = start_at_s + (service_latency_ms / 1000.0)
+            node.next_available_s = complete_at_s
+            node.in_flight += 1
 
-        event_seq += 1
-        heapq.heappush(
-            in_flight,
-            (
-                complete_at_s,
-                event_seq,
-                CompletionEvent(
-                    complete_at_s=complete_at_s,
-                    node_id=node.id,
-                    request=req,
-                    total_latency_ms=total_latency_ms,
-                    service_latency_ms=service_latency_ms,
-                    queue_wait_ms=queue_wait_ms,
-                    was_failover=was_failover,
+            total_latency_ms = queue_wait_ms + service_latency_ms
+            req.simulated_latency_ms = total_latency_ms
+
+            event_seq += 1
+            heapq.heappush(
+                in_flight,
+                (
+                    complete_at_s,
+                    event_seq,
+                    CompletionEvent(
+                        complete_at_s=complete_at_s,
+                        node_id=node.id,
+                        request=req,
+                        total_latency_ms=total_latency_ms,
+                        service_latency_ms=service_latency_ms,
+                        queue_wait_ms=queue_wait_ms,
+                        was_failover=was_failover,
+                    ),
                 ),
-            ),
-        )
+            )
+            dash.tick(
+                sim_second=sim_second,
+                total_processed=dispatched_count,
+                drops=dropped_count,
+                reroutes=reroute_count,
+                failovers=failover_count,
+                cache_hits=cache_hits_count,
+                replay_index=dispatched_count,
+                request_method=req.method,
+                request_path=req.url_path,
+                request_timestamp=req.timestamp.isoformat(),
+                arrival_delta_s=req.arrival_delta_s,
+            )
 
-    flush_completions(float("inf"))
+        flush_completions(float("inf"))
 
     summary = metrics.summary()
     elapsed = max(1e-9, time.perf_counter() - started)

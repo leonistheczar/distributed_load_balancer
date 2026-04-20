@@ -41,7 +41,6 @@ def is_bot_ua(user_agent: str) -> bool:
     ua = (user_agent or "").lower()
     return any(k in ua for k in ("bot", "crawl", "spider", "slurp", "bingpreview", "facebookexternalhit"))
 
-
 def iter_log_rows(log_path: Path) -> Iterator[dict]:
     with log_path.open("r", encoding="latin-1", errors="replace") as f:
         for line in f:
