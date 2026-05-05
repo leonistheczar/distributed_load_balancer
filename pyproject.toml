@@ -9,6 +9,7 @@ dependencies = [
   "seaborn>=0.12",
   "rich>=13.0",
   "pyyaml>=6.0",
+  "psutil>=5.9",
 ]
 
 [project.optional-dependencies]

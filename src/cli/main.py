@@ -19,6 +19,7 @@ from src.balancer import ALGORITHMS, get_algorithm
 from src.ingestion.loader import DatasetLoader
 from src.metrics.collector import MetricsCollector
 from src.metrics.exporter import MetricsExporter
+from src.metrics.host_runtime import HostRuntimeSampler
 from src.nodes.node import Node
 from src.nodes.pool import NodePool
 from src.replayer.replayer import TrafficReplayer
@@ -57,6 +58,8 @@ DEFAULT_NODES: list[NodeConfig] = [
     NodeConfig("node-1", weight=1, latency_min_ms=2.0, latency_max_ms=55.0),
     NodeConfig("node-2", weight=2, latency_min_ms=2.0, latency_max_ms=45.0),
     NodeConfig("node-3", weight=1, latency_min_ms=3.0, latency_max_ms=60.0),
+    NodeConfig("node-4", weight=1, latency_min_ms=3.0, latency_max_ms=60.0),
+    NodeConfig("node-5", weight=1, latency_min_ms=3.0, latency_max_ms=60.0),
 ]
 
 
@@ -144,6 +147,8 @@ def run_once(
 
     rng = random.Random(seed)
     started = time.perf_counter()
+    host_sampler = HostRuntimeSampler(sample_interval_s=0.25)
+    host_sampler.start()
     in_flight: list[tuple[float, int, CompletionEvent]] = []
     event_seq = 0
     dispatched_count = 0
@@ -196,6 +201,7 @@ def run_once(
 
     with dash:
         for req, sim_second in replayer.replay():
+            host_sampler.maybe_sample()
             flush_completions(sim_second)
             pool.tick(sim_second)
             dispatched_count += 1
@@ -286,13 +292,27 @@ def run_once(
 
         flush_completions(float("inf"))
 
+    host_sampler.flush()
     summary = metrics.summary()
     elapsed = max(1e-9, time.perf_counter() - started)
+    summary["host_runtime"] = host_sampler.as_summary_dict(wall_elapsed_s=elapsed)
     rps = summary["total_requests"] / elapsed if summary["total_requests"] else 0.0
     console.print(
         f"  Done: {summary['total_requests']:,} requests in {elapsed:.2f}s | "
         f"p99={summary['latency_p99_ms']:.1f}ms | imbalance={summary['load_imbalance_score']:.1f} | {rps:.0f} req/s"
     )
+    hr = summary["host_runtime"]
+    if hr.get("available") and hr.get("sample_count", 0):
+        cpu = hr["process_cpu_pct"]
+        rss = hr["process_rss_mb"]
+        sysm = hr["system_memory_used_pct"]
+        console.print(
+            f"  Host: CPU {cpu['mean']:.1f}% (max {cpu['max']:.1f}%) | "
+            f"process RSS {rss['mean']:.0f} MB (peak {rss['max']:.0f} MB) | "
+            f"system RAM used {sysm['mean']:.1f}% (max {sysm['max']:.1f}%)"
+        )
+    elif hr.get("available") is False:
+        console.print(f"  Host metrics: unavailable ({hr.get('reason', 'unknown')})")
     return summary
 
 
