@@ -94,6 +94,45 @@ class MetricsExporter:
         lines.append(f"  Winner (lowest p99 latency): {winner}")
         lines.append(f"  Best load balance:           {best_balance}")
         lines.append("=" * 65)
+        lines.append("  Host runtime (this machine while each algorithm ran)")
+        lines.append("  " + "─" * 61)
+        lines.append(
+            "  {:<20} {:>8} {:>9} {:>9} {:>11} {:>12} {:>12}".format(
+                "Algorithm",
+                "Wall s",
+                "CPU avg",
+                "CPU max",
+                "RSS avg MB",
+                "RSS peak MB",
+                "Sys RAM %",
+            )
+        )
+        lines.append("  " + "─" * 61)
+        for r in results:
+            algo = str(r.get("algorithm", ""))
+            hr = r.get("host_runtime") or {}
+            if not hr.get("available"):
+                reason = str(hr.get("reason", "n/a"))
+                lines.append(f"  {algo:<20}  unavailable: {reason}")
+            elif not hr.get("sample_count"):
+                lines.append(f"  {algo:<20}  (no host samples)")
+            else:
+                wall = float(hr.get("wall_time_s", 0.0))
+                cpu = hr.get("process_cpu_pct") or {}
+                rss = hr.get("process_rss_mb") or {}
+                sysm = hr.get("system_memory_used_pct") or {}
+                lines.append(
+                    "  {:<20} {:>8.2f} {:>9.1f} {:>9.1f} {:>11.0f} {:>12.0f} {:>12.1f}".format(
+                        algo,
+                        wall,
+                        float(cpu.get("mean", 0.0)),
+                        float(cpu.get("max", 0.0)),
+                        float(rss.get("mean", 0.0)),
+                        float(rss.get("max", 0.0)),
+                        float(sysm.get("mean", 0.0)),
+                    )
+                )
+        lines.append("=" * 65)
         lines.append("")
         return "\n".join(lines)
 
@@ -153,6 +192,26 @@ class MetricsExporter:
             total = int(r.get("total_requests", 0))
             dispatched = int(r.get("dispatched_requests", total))
             reroutes = int(r.get("backpressure_reroutes", 0))
+            hr = r.get("host_runtime") or {}
+            if hr.get("available") and hr.get("sample_count"):
+                wall = float(hr.get("wall_time_s", 0.0))
+                cpu_m = float((hr.get("process_cpu_pct") or {}).get("mean", 0.0))
+                cpu_x = float((hr.get("process_cpu_pct") or {}).get("max", 0.0))
+                rss_m = float((hr.get("process_rss_mb") or {}).get("mean", 0.0))
+                rss_x = float((hr.get("process_rss_mb") or {}).get("max", 0.0))
+                ram_m = float((hr.get("system_memory_used_pct") or {}).get("mean", 0.0))
+                host_cells = (
+                    f"<td>{wall:.2f}</td>"
+                    f"<td>{cpu_m:.1f} / {cpu_x:.1f}</td>"
+                    f"<td>{rss_m:.0f} / {rss_x:.0f}</td>"
+                    f"<td>{ram_m:.1f}</td>"
+                )
+            elif hr.get("available") is False:
+                reason = str(hr.get("reason", "n/a"))
+                host_cells = f'<td class="muted">—</td><td class="muted" colspan="3">{reason}</td>'
+            else:
+                host_cells = '<td class="muted">—</td><td class="muted" colspan="3">—</td>'
+
             rows.append(
                 f"""
                 <tr>
@@ -166,6 +225,7 @@ class MetricsExporter:
                   <td>{errors:.2f}%</td>
                   <td>{drops:.2f}%</td>
                   <td>{reroutes:,}</td>
+                  {host_cells}
                 </tr>
                 """
             )
@@ -201,6 +261,7 @@ class MetricsExporter:
     table {{ width:100%; border-collapse:collapse; margin-top:10px; }}
     th,td {{ border-bottom:1px solid var(--line); padding:10px 8px; text-align:left; font-size:13px; }}
     th {{ color:var(--muted); font-weight:600; }}
+    .muted {{ color:var(--muted); font-size:12px; }}
     .bars {{ display:grid; gap:10px; }}
     .bar-row {{ display:grid; grid-template-columns:90px 1fr 80px; align-items:center; gap:8px; font-size:13px; }}
     .bar {{ height:8px; border:1px solid var(--line); border-radius:99px; overflow:hidden; background:#111; }}
@@ -225,6 +286,9 @@ class MetricsExporter:
           <tr>
             <th>Algorithm</th><th>Completed</th><th>Dispatched</th><th>p50</th><th>p95</th><th>p99</th>
             <th>Imbalance</th><th>Errors</th><th>Drops</th><th>Reroutes</th>
+            <th>Wall s</th><th>Host CPU %<br><span class="muted">mean / max</span></th>
+            <th>Proc RSS MB<br><span class="muted">mean / peak</span></th>
+            <th>Sys RAM %<br><span class="muted">mean</span></th>
           </tr>
         </thead>
         <tbody>
