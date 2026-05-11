@@ -1,5 +1,7 @@
 ## MVP Distributed Load Balancer Simulator (E-Commerce Logs)
 
+#### Github Link: https://github.com/leonistheczar/distributed_load_balancer
+
 Python simulation that replays cleaned Zanbil.ir (Kaggle) HTTP requests through a pool of simulated backend nodes, comparing:
 
 - **rr**: Round Robin
@@ -37,13 +39,18 @@ Outputs:
 
 ```bash
 # Run all algorithms on sample
-python src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all
+py src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all
 
 # Quick test (first 5K requests)
-python src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all --sample 5000
+py src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all --sample 5000
 
 # Human traffic only
-python src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all --exclude-bots
+py src/cli/main.py --dataset data/ecommerce_sample.csv --algorithm all --exclude-bots
+
+# Default Command
+py src/cli/main.py --algorithm all --sample <any number of requests>
+
+
 ```
 
 Results are written to `results/` (JSON + TXT + PNG charts if matplotlib is installed).

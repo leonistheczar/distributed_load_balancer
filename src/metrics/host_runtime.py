@@ -1,3 +1,15 @@
+# ==========================================
+# Project: Parallel Distributed Computing
+# Institution: Emerson University Multan
+# Class: BSCS 6th (M) (2023-2027)
+
+# Team Members:
+# - Muhammad Ali (56)
+# - Muhammad Abdullah (54)
+# - Muhammad Subhan Safdar (53)
+# - Muhammad Hanan (14)
+# ==========================================
+
 from __future__ import annotations
 
 import time
