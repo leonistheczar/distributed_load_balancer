@@ -311,6 +311,33 @@ class MetricsExporter:
       </div>
     </div>
   </div>
+<footer
+  style="
+    background:#111827;
+    color:#e5e7eb;
+    padding:20px;
+    text-align:center;
+    border-top:1px solid #374151;
+    font-family:Arial,sans-serif;
+    font-size:14px;
+    line-height:1.8;
+    margin-top:20px;
+  "
+>
+  <p style="margin:4px 0; font-weight:600; color:#f9fafb;">
+    Developed by Muhammad Ali (56), Muhammad Abdullah (54),
+    Muhammad Subhan Safdar (53), Muhammad Hanan (14)
+  </p>
+
+  <p style="margin:4px 0; color:#9ca3af;">
+    BSCS 6th (M) • 2023-2027
+  </p>
+
+  <p style="margin:4px 0; color:#6b7280;">
+    Parallel Distributed Computing • Emerson University Multan
+  </p>
+    <a href="https://github.com/leonistheczar/distributed_load_balancer">Github Link: https://github.com/leonistheczar/distributed_load_balancer</a>
+</footer>
 </body>
 </html>
 """
@@ -384,6 +411,33 @@ class MetricsExporter:
     </div>
     {"".join(sections)}
   </div>
+  <footer
+  style="
+    background:#111827;
+    color:#e5e7eb;
+    padding:20px;
+    text-align:center;
+    border-top:1px solid #374151;
+    font-family:Arial,sans-serif;
+    font-size:14px;
+    line-height:1.8;
+    margin-top:20px;
+  "
+>
+  <p style="margin:4px 0; font-weight:600; color:#f9fafb;">
+    Developed by Muhammad Ali (56), Muhammad Abdullah (54),
+    Muhammad Subhan Safdar (53), Muhammad Hanan (14)
+  </p>
+
+  <p style="margin:4px 0; color:#9ca3af;">
+    BSCS 6th (M) • 2023-2027
+  </p>
+
+  <p style="margin:4px 0; color:#6b7280;">
+    Parallel Distributed Computing • Emerson University Multan
+  </p>
+    <a href="https://github.com/leonistheczar/distributed_load_balancer">Github Link: https://github.com/leonistheczar/distributed_load_balancer</a>
+</footer>
 </body>
 </html>
 """
